@@ -1,9 +1,12 @@
+dependencies {
+    implementation(project(mapOf("path" to ":meteor-external")))
+}
 version = "1.0.0"
 
-project.extra["PluginName"] = "ExampleSecond"
+project.extra["PluginName"] = "crab-fighter"
 project.extra["PluginDescription"] = "This is another example plugin these do nothing"
 
-val pluginClass by rootProject.extra { "example.ExampleSecondPlugin" }
+val pluginClass by rootProject.extra { "jalexb.crab-fighter" }
 
 
 

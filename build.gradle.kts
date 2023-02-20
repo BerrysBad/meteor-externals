@@ -27,6 +27,7 @@ subprojects {
         mavenLocal()
     }
     dependencies {
+        implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.6.4")
         implementation(group = "com.squareup.okhttp3", name = "okhttp", version = "5.0.0-alpha.10")
     }
     dependencies {
