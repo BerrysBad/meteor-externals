@@ -1,29 +1,15 @@
 [
   {
     "projectUrl": "https://discord.gg/mhJpd9yc",
-    "name": "ExamplePlugin",
-    "description": "This is an example plugin with a longer description so I can est the text-field constrainsts ",
-    "id": "exampleplugin-plugin",
+    "name": "Crab Fighter",
+    "description": "This is a crab fighter plugin. It will fight crabs. ",
+    "id": "crab-fighter",
     "releases": [
       {
         "date": "2023-01-03",
         "sha512sum": "3D77F54DD8F3CD47F2B9DEACDE5183AE98460718971F87405FCD4E5A7A7C9EA32F43733AFB2189DE6A4E1AC623AFF4C788E52F4C01D06374E9948E55C5EFD2E1",
         "version": "1.0.0",
-        "url": "https://github.com/MeteorLite/meteor-externals/raw/main/plugin-release/meteor-external-1.0.0.jar"
-      }
-    ]
-  },
-  {
-    "projectUrl": "https://discord.gg/mhJpd9yc",
-    "name": "ExampleSecond",
-    "description": "This is another example plugin these plugins do nothing",
-    "id": "examplesecond-plugin",
-    "releases": [
-      {
-        "date": "2023-01-03",
-        "sha512sum": "0CF9D5781E593A02EDE12FB6ADB318D2C12CF956F5531F2406DEB09C7F56317301924613790C6E2EFC7547121A19F336025D53C0AD042410E4814C0E11C99A07",
-        "version": "1.0.0",
-        "url": "https://github.com/MeteorLite/meteor-externals/raw/main/plugin-release/meteor-external2-1.0.0.jar"
+        "url": "https://github.com/jalexb/meteor-externals/plugin-release/main/crub-fighter-1.0.0.jar"
       }
     ]
   }

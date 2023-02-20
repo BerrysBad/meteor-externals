@@ -4,7 +4,7 @@ import meteor.config.legacy.Config
 import meteor.config.legacy.ConfigGroup
 import meteor.config.legacy.ConfigItem
 
-@ConfigGroup("BulletFighterPlugin")
+@ConfigGroup("crab-fighter")
 interface CrabFighterConfig : Config {
 
     @ConfigItem(
