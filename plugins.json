@@ -6,10 +6,9 @@
     "id": "crab-fighter",
     "releases": [
       {
-        "date": "2023-01-03",
-        "sha512sum": "3D77F54DD8F3CD47F2B9DEACDE5183AE98460718971F87405FCD4E5A7A7C9EA32F43733AFB2189DE6A4E1AC623AFF4C788E52F4C01D06374E9948E55C5EFD2E1",
+        "date": "2023-02-20",
         "version": "1.0.0",
-        "url": "https://github.com/jalexb/meteor-externals/blob/main/plugin-release/crab-fighter-1.0.0.jar"
+        "url": "https://github.com/jalexb/meteor-externals/raw/main/plugin-release/crab-fighter.jar"
       }
     ]
   }
