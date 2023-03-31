@@ -2,7 +2,7 @@
 
 
 
-version = "1.0.0"
+version = "1.0.1"
 
 project.extra["PluginName"] = "jTempoRoss"
 project.extra["PluginDescription"] = "This is a automated plugin for tempoross."
