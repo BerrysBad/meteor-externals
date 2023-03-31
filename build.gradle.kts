@@ -13,7 +13,7 @@ plugins{
 
 val apiRelease by rootProject.extra { "9.9.9" }
 
-project.extra["GithubUrl"] = "https://github.com/MeteorLite/meteor-externals"
+project.extra["GithubUrl"] = "https://github.com/jalexb/meteor-externals"
 apply<BootstrapPlugin>()
 
 subprojects {

@@ -9,14 +9,14 @@ import meteor.plugins.Plugin
 import meteor.plugins.PluginDescriptor
 import net.runelite.api.*
 import net.runelite.api.coords.WorldPoint
+import java.util.*
 import java.util.concurrent.Callable
-import java.util.concurrent.Executors
 import java.util.concurrent.LinkedBlockingQueue
 import kotlin.collections.ArrayList
 import kotlin.random.Random
 
 enum class CrabHome(
-    var home: WorldPoint?,
+    var home: WorldPoint,
     val location: String,
     val npc1: String,
     val npc2: String,
@@ -66,37 +66,38 @@ enum class CrabHome(
     external = true)
 class jCrabFighterPlugin : Plugin() {
     val config = configuration<jCrabFighterConfig>()
-    private var overlay = overlay(jCrabFighterOverlay(this, config))
-    var log: String = ""
+    private val overlay = overlay(jCrabFighterOverlay(this, config))
+    var log = ""
 
-    var hop_ticker = -1
-    var timeout_ticker = -1
-    var afk_ticker = 30
-
+    var hopTicker = -1
+    var afkTicker = -1
 
     // Get location and npc info from the config file
-    private var home_point: WorldPoint? = config.home().home
-    private var deaggro_point = config.home().deaggro
-    private var attack_radius = config.home().distance
-    private var dormant_npc = config.home().npc2
-    private var attack_npc = config.home().npc1
-    var area_name = config.home().location
-    var kourend_worldpoints =
-        mutableListOf(WorldPoint(1765, 3468, 0), WorldPoint(1776, 3468, 0), WorldPoint(1773, 3461, 0))
+    private var homePoint = config.home().home
+        get() = config.home().home
+    private var deaggroPoint = config.home().deaggro
+        get() = config.home().deaggro
+    private var attackRadius = config.home().distance
+        get() = config.home().distance
+    private var dormantNpc = config.home().npc2
+        get() = config.home().npc2
+    private var attackNpc = config.home().npc1
+        get() = config.home().npc1
+    private var areaName = config.home().location
+        get() = config.home().location
+    private var kourendSpots: MutableList<WorldPoint> = Collections.emptyList()
 
     // Initialize lists for dormant and attack monsters
-    var dormant_monsters: ArrayList<NPC> = ArrayList()
-    var attack_monsters: ArrayList<NPC> = ArrayList()
+    var dormantMonsters = ArrayList<NPC>()
+    var attackMonsters = ArrayList<NPC>()
 
     // Get the player's health and initialize executors and queues
-    private var health: Double = 0.0
-    private val executor = Executors.newWorkStealingPool()
-    private val scheduledTaskExecutor = Executors.newScheduledThreadPool(3)
-    val queue: LinkedBlockingQueue<Runnable> = LinkedBlockingQueue()
-    var start_time = System.currentTimeMillis()
+    private var health = 0.0
+    val queue = LinkedBlockingQueue<Runnable>()
+    var startTime = System.currentTimeMillis()
     var initialize_num = -1
 
-
+    var spot: WorldPoint? = null
 
     /**
      * Initializes the bot and runs any pending tasks.
@@ -104,25 +105,27 @@ class jCrabFighterPlugin : Plugin() {
      * @implNote Calls `initialize()` and `immediate?.run()`.
      */
     override fun onGameTick(it: GameTick) {
-        if(queue.size > 0) {
+        if (queue.size > 0) {
             println("queue size: ${queue.size}")
         }
         initialize()
 
+        println("spot: $spot")
+        println("homePoint: $homePoint")
+
+        if (client.localPlayer!!.isIdle && afkTicker <= 0) {
+            if (this.dormantMonsters.size > 0 && spot != null) {
+                deaggro()
+            } else {
+                kourend_findHome()
+                if (spot == null && client.localPlayer!!.worldLocation.distanceTo(homePoint) <= 10) { hop() }
+            }
+            afkTicker = Random.nextInt(25, 60)
+        }
+        afkTicker --
+        println("running queue")
         queue.poll()?.run()
 
-        afk_ticker--
-        if(afk_ticker <= 0) {
-            if(client.localPlayer!!.isIdle) {
-                println("afk timer called")
-                if(dormant_monsters.size > 0) {
-                    deaggro()
-                }
-                afk_ticker = Random.nextInt(25, 60)
-            } else {
-                afk_ticker = Random.nextInt(25, 60)
-            }
-        }
     }
 
 
@@ -134,8 +137,8 @@ class jCrabFighterPlugin : Plugin() {
      */
     private fun deaggro() {
         println("deaggrooing")
-        println(area_name)
-        when (area_name) {
+        println(areaName)
+        when (areaName) {
             "Rellekka" -> {
                 relekka_deaggro()
             }
@@ -147,13 +150,13 @@ class jCrabFighterPlugin : Plugin() {
     }
 
     private fun kourend_deaggro() {
-        var point = randWorldPoint(deaggro_point!!, 3)
+        var point = randWorldPoint(this.deaggroPoint!!, 3)
 
-        create_event(
-            {
-                Movement.walkTo(point) && (client.localPlayer!!.worldLocation.distanceTo(point) <= 10)
-            },
+        loop(
             { go_home() },
+            {
+                walk_to(point)
+            },
             Random.nextInt(2, 5),
             "Kourend deaggro",
             3
@@ -161,46 +164,48 @@ class jCrabFighterPlugin : Plugin() {
     }
 
     private fun kourend_findHome() {
+        var playerIsHome = client.localPlayer!!.distanceTo(this.spot ?: homePoint) <= 3
         println("kourend_findHome")
-        create_event(
-            {
-                Movement.walkTo(home_point)
-                client.localPlayer!!.distanceTo(home_point) <= 3
-            },
-            { findOpenSpot() },
-            Random.nextInt(0, 5),
-            "Walking to home area",
-            0
-        )
-        queue.add { go_home() }
+
+        if(playerIsHome) {
+            loop({ findOpenSpot() }, "Finding open spot")
+        } else {
+            go_home()
+        }
     }
 
-    fun findOpenSpot(): Boolean {
+    private fun findOpenSpot(): Boolean {
         println("finding spot")
-        when (area_name) {
+        when (areaName) {
             "Kourend" -> {
                 println("finding open spot")
-                kourend_worldpoints = kourend3()
+                kourendSpots = kourend3()
 
-                println("spots: ${kourend_worldpoints.size}")
+                if(client.localPlayer!!.worldLocation.distanceTo(homePoint) > 15) {
+                    go_home()
+                }
 
-                for(spot in kourend3()) {
+                println("spots: ${kourendSpots.size}")
+
+                for(crab_spots in kourend3()) {
                     for(player in client.players) {
-                        if(player.worldLocation == spot && player.name != client.localPlayer!!.name) {
-                            println("spot taken: ${spot} by ${player.name}")
-                            kourend_worldpoints.remove(spot)
+                        if(player.worldLocation == crab_spots && player.name != client.localPlayer!!.name) {
+                            println("spot taken: $crab_spots by ${player.name}")
+                            kourendSpots.remove(crab_spots)
                             break
                         }
                     }
                 }
-                if (kourend_worldpoints.isNotEmpty()) {
+                if (kourendSpots.isNotEmpty()) {
                     println("received world point successfully")
-                    config.home().home = kourend_worldpoints.first()
-                    home_point = kourend_worldpoints.first()
+                    config.home().home = kourendSpots.first()
+                    this.spot = kourendSpots.first()
                     return true
-                } else {
-                    hop()
                 }
+            }
+
+            "Rellekka" -> {
+                spot = this.homePoint
             }
         }
         return false
@@ -248,13 +253,13 @@ class jCrabFighterPlugin : Plugin() {
      * @implNote Updates the `attack_monsters` and `dormant_monsters` lists based on the current location of the player and the NPCs.
      */
     override fun onHitsplatApplied(it: HitsplatApplied) {
-        if (home_point != null) {
-            attack_monsters =
-                client.npcs.filter { it.distanceTo(client.localPlayer!!.worldLocation) <= 2 && attack_npc == it.name } as ArrayList<NPC>
-            dormant_monsters =
-                client.npcs.filter { it.name == dormant_npc && it.distanceTo(home_point) <= attack_radius } as ArrayList<NPC>
+        if (this.spot != null) {
+            this.attackMonsters =
+                client.npcs.filter { it.distanceTo(client.localPlayer!!.worldLocation) <= 2 && attackNpc == it.name } as ArrayList<NPC>
+            this.dormantMonsters =
+                client.npcs.filter { it.name == dormantNpc && it.distanceTo(this.homePoint) <= this.attackRadius } as ArrayList<NPC>
             health = (client.localPlayer!!.healthRatio).toDouble()
-            log = "attacking ${attack_monsters.size} crabs"
+            log = "attacking ${this.attackMonsters.size} crabs"
         }
     }
 
@@ -266,9 +271,9 @@ class jCrabFighterPlugin : Plugin() {
      */
     override fun onNPCDespawned(it: NpcDespawned) {
         monster_nearby(it.npc)
-        attack_monsters =
-            client.npcs.filter { it.distanceTo(client.localPlayer!!.worldLocation) <= 2 && attack_npc == it.name } as ArrayList<NPC>
-        log = "attacking ${attack_monsters.size} crabs"
+        this.attackMonsters =
+            client.npcs.filter { it.distanceTo(client.localPlayer!!.worldLocation) <= 2 && attackNpc == it.name } as ArrayList<NPC>
+        log = "attacking ${this.attackMonsters.size} crabs"
     }
 
     /**
@@ -288,39 +293,40 @@ class jCrabFighterPlugin : Plugin() {
      * @param npc the NPC to check for proximity to the home point and name
      */
     fun monster_nearby(npc: NPC) {
-        var near = npc.worldLocation.distanceTo(home_point) <= attack_radius
+        val near = npc.worldLocation.distanceTo(this.homePoint) <= this.attackRadius
 
-        if (npc.name == dormant_npc && near) {
-            dormant_monsters.add(npc)
+        if (npc.name == dormantNpc && near) {
+            this.dormantMonsters.add(npc)
         }
     }
 
     override fun onLoginStateChanged(it: LoginStateChanged) {
-        dormant_monsters = ArrayList()
-        attack_monsters = ArrayList()
-        afk_ticker = -1
-        hop_ticker = -1
-        start_time = System.currentTimeMillis()
+        this.dormantMonsters = ArrayList()
+        this.attackMonsters = ArrayList()
+        this.afkTicker = -1
+        this.hopTicker = -1
+        this.startTime = System.currentTimeMillis()
     }
 
     /**
      * Initializes the script by checking if any other players are at home.
      */
     private fun initialize() {
-        home_point = config.home().home
-        deaggro_point = config.home().deaggro
-        attack_radius = config.home().distance
-        dormant_npc = config.home().npc2
-        attack_npc = config.home().npc1
-        area_name = config.home().location
+        this.homePoint = config.home().home
+        this.deaggroPoint = config.home().deaggro
+        this.attackRadius = config.home().distance
+        this.dormantNpc = config.home().npc2
+        this.attackNpc = config.home().npc1
+        this.areaName = config.home().location
 
         if (initialize_num == -1) {
-            println("going to $area_name")
-            when (area_name) {
+            println("going to ${this.areaName}")
+            when (this.areaName) {
                 "Kourend" -> queue.add { kourend_findHome() }
                 "Relekka" -> queue.add { go_home() }
             }
             initialize_num = 0
+            afkTicker = 15
         }
         checkIfOtherPlayersIsAtHome()
     }
@@ -331,15 +337,19 @@ class jCrabFighterPlugin : Plugin() {
      * If `hop_ticker` is greater than 15, calls `hop()` to switch to a different world.
      */
     fun checkIfOtherPlayersIsAtHome() {
-        if (client.players.any { it != client.localPlayer!! && it.worldLocation.distanceTo(home_point) <= 3 }) {
-            log = ("player at home")
-            hop_ticker++
-        }
+        if (client.players.any { it != client.localPlayer!! && it.worldLocation.distanceTo(this.homePoint) <= 3 }) {
+            this.log = ("player at home")
+            if(this.hopTicker == -1) {
+                this.hopTicker = 15
+                return
+            }
+            this.hopTicker
 
-        if (hop_ticker > 15) {
-            println("hopping for other person is on tile")
-            hop()
-            hop_ticker = 0
+            if (this.hopTicker <= 0) {
+                println("hopping for other person is on tile")
+                hop()
+                this.hopTicker = 15
+            }
         }
     }
 
@@ -350,12 +360,12 @@ class jCrabFighterPlugin : Plugin() {
      *           Calls `client.hopToWorld()` with the first available world that meets the criteria.
      */
     private fun hop() {
-        log = ("hop worlds")
-        queue.add {
-            client.hopToWorld(Worlds.getRandom {
-                it.playerCount > 300 &&
+        this.log = ("hop worlds")
+        this.spot = null
+        this.queue.add {
+            this.client.hopToWorld(Worlds.getRandom {
                         it.isMembers && !it.isAllPkWorld && !it.isLeague
-                        && !it.isSkillTotal && !it.isTournament && it.id != client.world
+                        && !it.isSkillTotal && !it.isTournament && it.id != this.client.world
             })
         }
     }
@@ -368,21 +378,25 @@ class jCrabFighterPlugin : Plugin() {
      *           and sets `state_num` to 4 once the player has arrived.
      *           Calls `wait4agg()` once the player has arrived.
      */
-    fun go_home() {
-        log = "Going home"
-        create_event(
-            {
-                Movement.walkTo(home_point) && (config.home().home == client.localPlayer!!.worldLocation)
-            },
-            {
-                Movement.walkTo(home_point)
-//                wait4agg()
-            },
-            Random.nextInt(0, 5),
-            "Going home",
-            1
-        )
+    private fun go_home() {
+        this.log = "Going home"
 
+        val point = this.spot ?: randWorldPoint(this.homePoint, 3)
+        println(" heading to: $point")
+        if(point.distanceTo(client.localPlayer!!.worldLocation) > 10) {
+            loop(
+                {
+                    walk_to(point)
+                },
+                "Going home",
+            )
+        }
+    }
+
+    private fun walk_to(point: WorldPoint): Boolean {
+        println("Walking to $point")
+        Movement.walkTo(point)
+        return point.distanceTo(this.client.localPlayer!!.worldLocation) == 0
     }
     /**
      * Checks if the player is interacting with a cannon.
@@ -406,20 +420,15 @@ class jCrabFighterPlugin : Plugin() {
      *           If inside, calls `go_home()` to return to the designated `home_point`.
      */
     private fun relekka_deaggro() {
-        log = ("running -> deagg")
+        this.log = ("running -> deagg")
         val tunnel: TileObject? = Objects.getFirst("Tunnel")
         val inside: Boolean = tunnel!!.id == 5014
         if (inside) {
             tunnel.interact("Enter")
             go_home()
-        } else if (client.localPlayer!!.isIdle) {
+        } else if (this.client.localPlayer!!.isIdle) {
             tunnel.interact("Enter")
         }
-    }
-
-    fun create_event(callable: Callable<Boolean>, runnable: Runnable, wait: Int, name: String, state: Int) {
-        println("Event created::${name}")
-        queue.add { wait_until(runnable, callable, wait, name, state) }
     }
 
 
@@ -437,7 +446,7 @@ class jCrabFighterPlugin : Plugin() {
      *           Uses `immediate` to execute the `runnable` action.
      *           The `wait` argument specifies the duration of the timer.
      */
-    fun wait_until(
+    private fun loop(
         runnable: Runnable,
         callable: Callable<Boolean>,
         wait: Int,
@@ -447,10 +456,24 @@ class jCrabFighterPlugin : Plugin() {
         println("Running::${name}")
         if(callable.call()) {
             println("Ending::${name}")
-            queue.add(runnable)
+            this.queue.clear()
+            this.queue.add(runnable)
             return
         }
-        queue.add { wait_until(runnable, callable, wait, name, state) }
+        this.queue.add { loop(runnable, callable, wait, name, state) }
+        println("ReRunning::${name}")
+    }
+
+    private fun loop(
+        callable: Callable<Boolean>,
+        name: String,
+    ) {
+        println("Running::${name}")
+        if(callable.call()) {
+            println("Ending::${name}")
+            return
+        }
+        this.queue.add { loop(callable, name) }
         println("ReRunning::${name}")
     }
 }

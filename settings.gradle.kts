@@ -3,5 +3,5 @@
 
 rootProject.name = "External-Plugins"
 
-include("meteor-external")
-include("crab-fighter")
+include("jTempoRoss")
+include("jCrabFighter")

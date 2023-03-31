@@ -124,9 +124,9 @@ class jTempoRossPlugin : Plugin() {
         }
     }
 
-    private fun get_rope(): Boolean {
-
-    }
+//    private fun get_rope(): Boolean {
+//
+//    }
 
     private fun walkTo_home_point(): Boolean {
         return if(client.localPlayer!!.worldLocation.distanceTo(home_point) < 3) {
